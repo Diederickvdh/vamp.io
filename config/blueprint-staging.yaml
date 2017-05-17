@@ -1,0 +1,23 @@
+name: vamp.io-staging
+clusters:
+  site:
+    services:
+      breed:
+        name: site
+        deployable:
+          type: container/docker
+          definition: magnetic.azurecr.io/vamp.io:nightly
+        ports:
+          webport: 8080/http
+      arguments:
+      dialects:
+        marathon:
+          container:
+            docker:
+              forcePullImage: true
+          args: ['-conf', 'Caddyfile']
+          uris: ['https://s3.eu-central-1.amazonaws.com/magnetic-test-dcos/templates/dcos/docker.tar.gz']
+      scale:
+        cpu: 0.2
+        memory: 512MB
+        instances: 1

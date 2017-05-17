@@ -1,24 +1,14 @@
 #!groovy​
 node("mesos-slave-vamp.io") {
-  version = 'nightly'
-  gitBranch = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
-  echo "branch: ${gitBranch}"
+  checkout scm
+  // determine which version to build and deploy
+  gitTag = sh(returnStdout: true, script: 'git describe --tag --abbrev=0').trim()
+  gitTagDirty = sh(returnStdout: true, script: 'git describe --tag').trim()
+  version = (gitTag == gitTagDirty) ? gitTag : 'nightly'
 
   withEnv(["VAMP_VERSION=${version}"]) {
     stage('Build') {
-      checkout scm
-      gitBranch = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
-      gitTag = sh(returnStdout: true, script: 'git describe --tag --abbrev=0').trim()
-      gitTagDirty = sh(returnStdout: true, script: 'git describe --tag').trim()
-      echo "branch: ${gitBranch}"
-      echo "tag: ${gitTag}"
-      echo "tagDirty: ${gitTagDirty}"
-      sh '''
-      printenv
-      npm install
-      gulp build:site
-      gulp build --env=production
-      '''
+      sh '''npm install && gulp build:site && gulp build --env=production'''
       docker.build 'magnetic.azurecr.io/vamp.io:$VAMP_VERSION', '.'
     }
 
@@ -37,17 +27,21 @@ node("mesos-slave-vamp.io") {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
         withDockerRegistry([credentialsId: 'registry', url: 'https://magnetic.azurecr.io']) {
             def site = docker.image('magnetic.azurecr.io/vamp.io:$VAMP_VERSION')
-            site.push(env.VAMP_VERSION)
-            site.push('latest')
+            site.push(version)
         }
       }
     }
 
     stage('Deploy') {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
-        if (version != 'nightly') {
+        if (version == 'nightly') {
+          // replace running container
           sh script: '''
-          curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
+          curl -s -d @config/blueprint-staging.yaml http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
+          '''
+        else {
+          sh script: '''
+          curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
           '''
         }
       }
