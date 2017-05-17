@@ -42,18 +42,19 @@ node("mesos-slave-vamp.io") {
           currentVersion = getCurrentNightlyVersion();
           currentGitShortHash = currentVersion ? currentVersion.split(':')[1] : "";
           if (currentGitShortHash != gitShortHash) {
-            withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${gitShortHash}"])
-            // add latest version to deployment
-            resp = sh script: '''
-            curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
-            ''', returnStdout: true
-            if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
-            if (currentVersion) {
-              // delete old version
+            withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${gitShortHash}"]){
+              // add latest version to deployment
               resp = sh script: '''
-              curl -s -X DELETE -d "$(sed s/VERSION/$OLD_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
+              curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
               ''', returnStdout: true
               if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
+              if (currentVersion) {
+                // delete old version
+                resp = sh script: '''
+                curl -s -X DELETE -d "$(sed s/VERSION/$OLD_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
+                ''', returnStdout: true
+                if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
+              }
             }
           }
         } else {
