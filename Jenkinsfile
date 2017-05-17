@@ -7,9 +7,15 @@ node("mesos-slave-vamp.io") {
   withEnv(["VAMP_VERSION=${version}"]) {
     stage('Build') {
       checkout scm
+      gitBranch = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
+      gitTag = sh(returnStdout: true, script: 'git describe --tag --abbrev=0').trim()
+      gitTagDirty = sh(returnStdout: true, script: 'git describe --tag').trim()
+      echo "branch: ${gitBranch}"
+      echo "tag: ${gitTag}"
+      echo "tagDirty: ${gitTagDirty}"
       sh '''
       printenv
-      npm install 
+      npm install
       gulp build:site
       gulp build --env=production
       '''
