@@ -3,7 +3,7 @@ clusters:
   site:
     services:
       breed:
-        name: site
+        name: site:nightly
         deployable:
           type: container/docker
           definition: magnetic.azurecr.io/vamp.io:nightly
