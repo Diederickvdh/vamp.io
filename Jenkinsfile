@@ -34,16 +34,18 @@ node("mesos-slave-vamp.io") {
 
     stage('Deploy') {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
+        def resp = ''
         if (version == 'nightly') {
           // replace running container
-          sh script: '''
+          resp = sh script: '''
           curl -s --data-binary @config/blueprint-staging.yaml http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
-          '''
+          ''', returnStdout: true
         } else {
-          sh script: '''
+          resp = sh script: '''
           curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
-          '''
+          ''', returnStatus: true
         }
+        if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
       }
     }
   }
