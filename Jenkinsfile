@@ -39,7 +39,7 @@ node("mesos-slave-vamp.io") {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
         def resp = ''
         if (version == 'nightly') {
-          currentVersion = getCurrentNightlyVersion();
+          currentVersion = getDeployedStagingVersion();
           currentGitShortHash = currentVersion ? currentVersion.split(':')[1] : "";
           if (currentGitShortHash != gitShortHash) {
             withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${gitShortHash}"]){
@@ -68,7 +68,7 @@ node("mesos-slave-vamp.io") {
   }
 }
 
-def getCurrentNightlyVersion() {
+def getDeployedStagingVersion() {
   def response = httpRequest url:"http://10.20.0.100:8080/api/v1/deployments/vamp.io-staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
 
   if (response.status == 404) {
