@@ -8,7 +8,9 @@ node("mesos-slave-vamp.io") {
 
   withEnv(["VAMP_VERSION=${version}"]) {
     stage('Build') {
-      sh '''npm install && gulp build:site && gulp build --env=production'''
+      script = 'npm install && gulp build:site && gulp build'
+      script += (version == 'nightly')? ' --env=staging': ' --env=production'
+      sh script: script
       docker.build 'magnetic.azurecr.io/vamp.io:$VAMP_VERSION', '.'
     }
 

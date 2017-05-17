@@ -17,15 +17,8 @@ var srcDir = process.env.INIT_CWD + '/src';
 var siteDir = process.env.INIT_CWD + '/site';
 
 // set environment-dependent variables
-var env = require(srcDir + '/env.json');
-var baseUrl = '!';
-var buildDrafts = false;
-if (gutil.env.env == 'production') {
-    baseUrl = env.prod.baseUrl;
-} else {
-    baseUrl = env.dev.baseUrl;
-    buildDrafts = true;
-}
+var envVars = require(srcDir + '/env.json');
+var environment = gutil.env.env ? gutil.env.env : 'development'
 
 gulp.task('build:site', function(){
     gulp.src('content/**/*', {cwd: srcDir}).pipe(gulp.dest(siteDir + '/content'));
@@ -60,6 +53,6 @@ gulp.task('build:js', ['build:site'], function() {
 });
 
 gulp.task('build:search-index', ['build:site'], shell.task(['node ../src/buildSearchIndex.js'], {cwd: siteDir}));
-gulp.task('build:hugo', ['build:site', 'build:css', 'build:search-index', 'build:js'], shell.task(['hugo'], { env: {'HUGO_BASEURL': baseUrl, 'HUGO_BUILDDRAFTS': buildDrafts}, cwd: siteDir}));
+gulp.task('build:hugo', ['build:site', 'build:css', 'build:search-index', 'build:js'], shell.task(['hugo'], { env: {'HUGO_BASEURL': envVars[environment].baseUrl, 'HUGO_BUILDDRAFTS': envVars[environment].buildDrafts}, cwd: siteDir}));
 gulp.task('build', ['build:site', 'build:hugo']);
 
