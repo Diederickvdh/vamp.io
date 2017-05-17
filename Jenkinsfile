@@ -2,6 +2,7 @@
 node("mesos-slave-vamp.io") {
   checkout scm
   // determine which version to build and deploy
+  gitShortHash = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim();
   gitTag = sh(returnStdout: true, script: 'git describe --tag --abbrev=0').trim()
   gitTagDirty = sh(returnStdout: true, script: 'git describe --tag').trim()
   version = (gitTag == gitTagDirty) ? gitTag : 'nightly'
@@ -38,17 +39,33 @@ node("mesos-slave-vamp.io") {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
         def resp = ''
         if (version == 'nightly') {
-          // replace running container
-          resp = sh script: '''
-          curl -s --data-binary @config/blueprint-staging.yaml http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
-          ''', returnStdout: true
+          currentGitShortHash = getCurrentNightlyVersion().split(':')[1];
+          if (currentGitShortHash != gitShortHash) {
+            withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${gitShortHash}"])
+            // add latest version to deployment
+            resp = sh script: '''
+            curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
+            ''', returnStdout: true
+            if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
+            // delete old version
+            resp = sh script: '''
+            curl -s -X DELETE -d "$(sed s/VERSION/$OLD_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
+            ''', returnStdout: true
+            if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
+          }
         } else {
           resp = sh script: '''
           curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
           ''', returnStatus: true
+          if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
         }
-        if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
       }
     }
   }
+}
+
+def getCurrentNightlyVersion() {
+  def response = httpRequest url:"http://10.20.0.100:8080/api/v1/deployments/vamp.io-staging", acceptType: "APPLICATION_JSON"
+  def props = readJSON text: response.content
+  return props.clusters.site.services[0].breed.name;
 }
