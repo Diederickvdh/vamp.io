@@ -65,7 +65,12 @@ node("mesos-slave-vamp.io") {
 }
 
 def getCurrentNightlyVersion() {
-  def response = httpRequest url:"http://10.20.0.100:8080/api/v1/deployments/vamp.io-staging", acceptType: "APPLICATION_JSON"
+  def response = httpRequest url:"http://10.20.0.100:8080/api/v1/deployments/vamp.io-staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
+
+  if (response.status == 404) {
+    return "";
+  }
+
   def props = readJSON text: response.content
   return props.clusters.site.services[0].breed.name;
 }
