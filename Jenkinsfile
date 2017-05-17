@@ -39,7 +39,7 @@ node("mesos-slave-vamp.io") {
           sh script: '''
           curl -s -d @config/blueprint-staging.yaml http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
           '''
-        else {
+        } else {
           sh script: '''
           curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
           '''
