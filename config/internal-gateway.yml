@@ -1,0 +1,8 @@
+name: vamp.io-staging/site/webport
+kind: gateway
+internal: true
+routes:
+  vamp.io-staging/site/site:NEW_VERSION/webport:
+    weight: 100%
+  vamp.io-staging/site/site:OLD_VERSION/webport:
+    weight: 0%

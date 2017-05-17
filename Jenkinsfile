@@ -49,6 +49,10 @@ node("mesos-slave-vamp.io") {
               ''', returnStdout: true
               if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
               if (currentVersion) {
+                // switch traffic to new version
+                resp = sh script: '''
+                curl -s -d "$(sed -e s/OLD_VERSION/$OLD_VERSION/g -e s/NEW_VERSION/$NEW_VERSION/g config/internal-gateway.yaml)" http://10.20.0.100:8080/api/v1/gateways/vamp.io-staging/site/webport -H 'Content-type: application/x-yaml'
+                ''', returnStdout: true
                 // delete old version
                 resp = sh script: '''
                 curl -s -X DELETE -d "$(sed s/VERSION/$OLD_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/deployments -H 'Content-type: application/x-yaml'
