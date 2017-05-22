@@ -1,4 +1,4 @@
-name: vamp.io-staging/site/webport
+name: vamp.io:staging/site/webport
 kind: gateway
 internal: true
 routes:
