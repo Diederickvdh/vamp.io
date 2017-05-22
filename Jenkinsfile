@@ -50,7 +50,7 @@ node("mesos-slave-vamp.io") {
               if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
               // merge to deployment
               resp = sh script: '''
-              curl -s -d "name: vamp.io:staging:${VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
+              curl -s -d "name: vamp.io:staging:${NEW_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
               ''', returnStatus: true
               if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
               if (currentVersion) {
