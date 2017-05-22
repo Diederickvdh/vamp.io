@@ -44,41 +44,49 @@ node("mesos-slave-vamp.io") {
           if (currentGitShortHash != gitShortHash) {
             withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${gitShortHash}"]){
               // create new blueprint
-              VampAPICall '''
+              def script = '''
               curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/blueprints -H 'Content-type: application/x-yaml'
               '''
+              VampAPICall script
               // merge to deployment
-              VampAPICall '''
+              script = '''
               curl -s -d "name: vamp.io:staging:${NEW_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
               '''
+              VampAPICall script
               if (currentVersion) {
                 // switch traffic to new version
-                VampAPICall '''
+                script = '''
                 curl -s -d "$(sed -e s/OLD_VERSION/$OLD_VERSION/g -e s/NEW_VERSION/$NEW_VERSION/g config/internal-gateway.yaml)"  -XPUT http://10.20.0.100:8080/api/v1/gateways/vamp.io:staging/site/webport -H 'Content-type: application/x-yaml'
                 '''
+                VampAPICall script
                 // remove old blueprint from deployment
-                VampAPICall '''
+                script = '''
                 curl -s -d "name: vamp.io:staging:${OLD_VERSION}" -XDELETE http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
                 '''
+                VampAPICall script
                 // delete old blueprint
-                VampAPICall '''
+                script = '''
                 curl -s -XDELETE http://10.20.0.100:8080/api/v1/blueprints/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
                 '''
+                VampAPICall script
                 // delete old breed
-                VampAPICall '''
+                script = '''
                 curl -s -XDELETE http://10.20.0.100:8080/api/v1/breeds/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
                 '''
+                VampAPICall script
             }
           }
         } else {
           // create new blueprint
-          VampAPICall '''
+          def script = '''
           curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/blueprints -H 'Content-type: application/x-yaml'
           '''
+          VampAPICall script
           // merge to existing deployment
-          VampAPICall '''
+          script = '''
           curl -s -d "name: vamp.io:prod:${VAMP_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
           '''
+          VampAPICall script
       }
     }
   }
