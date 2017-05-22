@@ -64,13 +64,13 @@ node("mesos-slave-vamp.io") {
                 if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
                 // remove old blueprint from deployment
                 resp = sh script: '''
-                curl -s -d "name: vamp.io.:staging:${OLD_VERSION}" -XDELETE http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
+                curl -s -d "name: vamp.io:staging:${OLD_VERSION}" -XDELETE http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
                 ''', returnStdout: true
                 echo resp
                 if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
                 // delete old blueprint
                 resp = sh script: '''
-                curl -s -XDELETE http://10.20.0.100:8080/api/v1/blueprints/vamp.io.:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
+                curl -s -XDELETE http://10.20.0.100:8080/api/v1/blueprints/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
                 ''', returnStdout: true
                 echo resp
                 if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
