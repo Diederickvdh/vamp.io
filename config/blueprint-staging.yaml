@@ -1,4 +1,4 @@
-name: vamp.io-staging
+name: vamp.io:staging:VERSION
 clusters:
   site:
     services:
