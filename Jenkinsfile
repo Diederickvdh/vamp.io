@@ -71,7 +71,7 @@ node("mesos-slave-vamp.io") {
                 VampAPICall(script)
                 // delete old breed
                 script = '''
-                curl -s -XDELETE http://10.20.0.100:8080/api/v1/breeds/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
+                curl -s -XDELETE http://10.20.0.100:8080/api/v1/breeds/site:${OLD_VERSION} -H 'Content-type: application/x-yaml'
                 '''
                 VampAPICall(script)
               }
