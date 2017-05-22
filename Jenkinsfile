@@ -51,7 +51,7 @@ node("mesos-slave-vamp.io") {
               // merge to deployment
               resp = sh script: '''
               curl -s -d "name: vamp.io:staging:${NEW_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
-              ''', returnStatus: true
+              ''', returnStdout: true
               if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
               if (currentVersion) {
                 // switch traffic to new version
@@ -76,12 +76,12 @@ node("mesos-slave-vamp.io") {
           // create new blueprint
           resp = sh script: '''
           curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/blueprints -H 'Content-type: application/x-yaml'
-          ''', returnStatus: true
+          ''', returnStdout: true
           if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
           // merge to existing deployment
           resp = sh script: '''
-          curl -s -d "name: vamp.io:prod:${VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
-          ''', returnStatus: true
+          curl -s -d "name: vamp.io:prod:${VAMP_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
+          ''', returnStdout: true
           if (resp.contains("Error")) { error "Deployment failed! Error: " + resp }
         }
       }
