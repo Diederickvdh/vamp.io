@@ -99,6 +99,7 @@ node("mesos-slave-vamp.io") {
 
 String getTargetVersion() {
   String version = 'nightly'
+  String gitTag = sh(returnStdout: true, script: 'git describe --tag --abbrev=0')
   String gitTagDirty = sh(returnStdout: true, script: 'git describe --tag').trim()
 
   if (isUserTriggered() && params.TARGET_ENV == 'production') {
