@@ -22,7 +22,7 @@ node("mesos-slave-vamp.io") {
     }
 
     stage('Test') {
-      docker.image("magnetic.azurecr.io/vamp.io:${TARGET_VERSION}").withRun ('-p 8080:8080', '-conf Caddyfile') {c ->
+      docker.image('magnetic.azurecr.io/vamp.io:${TARGET_VERSION}').withRun ('-p 8080:8080', '-conf Caddyfile') {c ->
           // check if the base url is set properly
           resp = sh( script: 'curl -s http://localhost:8080', returnStdout: true ).trim()
           assert !resp.contains("localhost:8080")
@@ -35,7 +35,7 @@ node("mesos-slave-vamp.io") {
     stage('Publish') {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
         withDockerRegistry([credentialsId: 'registry', url: 'https://magnetic.azurecr.io']) {
-            def site = docker.image("magnetic.azurecr.io/vamp.io:${env.TARGET_VERSION}")
+            def site = docker.image('magnetic.azurecr.io/vamp.io:${TARGET_VERSION}')
             site.push(version)
         }
       }
