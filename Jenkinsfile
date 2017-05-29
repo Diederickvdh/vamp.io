@@ -57,7 +57,7 @@ node("mesos-slave-vamp.io") {
               if (currentGitShortHash) {
                 withEnv(["OLD_VERSION=${currentGitShortHash}"]){
                   // switch traffic to new version
-                  payload =  sh script: 'sed -e s/OLD_VERSION/${OLD_VERSION}/g -e s/NEW_VERSION/${NEW_VERSION}/g config/internal-gateway.yaml'
+                  payload =  sh script: 'sed -e s/OLD_VERSION/${OLD_VERSION}/g -e s/NEW_VERSION/${NEW_VERSION}/g config/internal-gateway.yaml', returnStdout: true
                   VampAPICall('gateways/vamp.io:staging/site/webport', 'PUT', payload)
                   // remove old blueprint from deployment
                   payload = 'name: vamp.io:staging:${OLD_VERSION}'
