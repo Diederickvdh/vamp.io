@@ -76,18 +76,18 @@ node("mesos-slave-vamp.io") {
                 VampAPICall(script)
               }
             }
-          } else {
-            // create new blueprint
-            def script = '''
-            curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/blueprints -H 'Content-type: application/x-yaml'
-            '''
-            VampAPICall(script)
-            // merge to existing deployment
-            script = '''
-            curl -s -d "name: vamp.io:prod:${VAMP_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
-            '''
-            VampAPICall(script)
           }
+        } else {
+          // create new blueprint
+          def script = '''
+          curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/blueprints -H 'Content-type: application/x-yaml'
+          '''
+          VampAPICall(script)
+          // merge to existing deployment
+          script = '''
+          curl -s -d "name: vamp.io:prod:${VAMP_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
+          '''
+          VampAPICall(script)
         }
       }
     }
