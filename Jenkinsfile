@@ -49,7 +49,7 @@ node("mesos-slave-vamp.io") {
           String targetGitShortHash = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim();
           String currentGitShortHash = getDeployedStagingVersion();
           if (currentGitShortHash != targetGitShortHash) {
-            echo 'Deploying revision ' + targetGitShortHash}
+            echo 'Deploying revision ' + targetGitShortHash
             withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${targetGitShortHash}"]){
               // create new blueprint
               def script = '''
