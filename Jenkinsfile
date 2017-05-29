@@ -20,7 +20,7 @@ node("mesos-slave-vamp.io") {
           // check if the base url is set properly
           resp = sh( script: 'curl -s http://localhost:8080', returnStdout: true ).trim()
           assert !resp.contains("localhost:8080")
-          // check if the aliases are set properly
+          // check if the aliases are set properly!
           resp = sh script: "curl -Ls http://localhost:8080/documentation/", returnStdout: true
           assert resp =~ /url=.*\/documentation\/how-vamp-works\/v\d.\d.\d\/architecture-and-components/
       }
