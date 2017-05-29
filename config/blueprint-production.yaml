@@ -1,4 +1,4 @@
-name: vamp.io:prod:VERSION
+name: vamp.io:production:VERSION
 clusters:
   site:
     services:

@@ -43,7 +43,7 @@ node("mesos-slave-vamp.io") {
 
     stage('Deploy') {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
-        if (version == 'nightly') {
+        if (env.TARGET_ENV == 'staging' && isUserTriggered() || version == 'nightly') {
           String targetGitShortHash = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim();
           String currentGitShortHash = getDeployedStagingVersion();
           if (currentGitShortHash != targetGitShortHash) {
@@ -69,14 +69,14 @@ node("mesos-slave-vamp.io") {
                 }
               }
             }
-          } else {
-            // create new blueprint
-            String payload = sh script: 'sed s/VERSION/${TARGET_VERSION}/g config/blueprint-production.yaml', returnStdout: true
-            VampAPICall('blueprints', 'POST', payload)
-            // merge to existing deployment
-            payload = 'name: vamp.io:prod:${TARGET_VERSION}'
-            VampAPICall('deployments/vamp.io:prod', 'PUT', payload)
           }
+        } else {
+          // create new blueprint
+          String payload = sh script: 'sed s/VERSION/${TARGET_VERSION}/g config/blueprint-production.yaml', returnStdout: true
+          VampAPICall('blueprints', 'POST', payload)
+          // merge to existing deployment
+          payload = 'name: vamp.io:production:${TARGET_VERSION}'
+          VampAPICall('deployments/vamp.io:production', 'PUT', payload)
         }
       }
     }
