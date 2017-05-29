@@ -129,7 +129,7 @@ def VampAPICall(String script) {
 
 String getDeployedStagingVersion() {
   def res = httpRequest url:"http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
-  String version = '';
+  String version = "";
 
   if (res.status == 404) {
     return version;
@@ -137,6 +137,6 @@ String getDeployedStagingVersion() {
 
   String props = readJSON text: res.content
   String currentVersion = props.clusters.site.services[0].breed.name;
-  version = (currentVersion) ? currentVersion.split(':')[1] : ''
+  version = (currentVersion) ? currentVersion.split(':')[1] : ""
   return version
 }
