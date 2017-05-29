@@ -1,7 +1,7 @@
 #!groovy​
 properties([
   parameters([
-    string(name: 'VAMP_API_ENDPOINT', defaultValue: '10.20.0.100:8080', description: 'The VAMP API endpoint')
+    string(name: 'VAMP_API_ENDPOINT', defaultValue: '10.20.0.100:8080', description: 'The VAMP API endpoint'),
     choice(name: 'TARGET_ENV', choices: ['staging', 'production'].join('\n'), description: 'The target environment')
    ])
 ])
