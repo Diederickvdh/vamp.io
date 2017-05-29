@@ -2,7 +2,7 @@
 properties([
   [ $class  : 'jenkins.model.BuildDiscarderProperty', strategy: [ $class: 'LogRotator', numToKeepStr: '20' ] ],
   pipelineTriggers([
-    [ $class: 'hudson.triggers.TimerTrigger', spec  : "*/5 * * * *" ]
+    [ $class: 'hudson.triggers.TimerTrigger', spec  : "H/5 * * * *" ]
   ]),
   parameters([
     string(name: 'VAMP_API_ENDPOINT', defaultValue: '10.20.0.100:8080', description: 'The VAMP API endpoint'),
