@@ -115,7 +115,7 @@ def VampAPICall(String path, String method = 'GET', String payload = '') {
 }
 
 String getDeployedStagingVersion() {
-  def res = httpRequest url:"http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
+  def res = httpRequest url:"http://${params.VAMP_API_ENDPOINT}/api/v1/deployments/vamp.io:staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
   String version = '';
 
   if (res.status == 404) {
