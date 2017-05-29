@@ -57,7 +57,7 @@ node("mesos-slave-vamp.io") {
               if (currentGitShortHash) {
                 withEnv(["OLD_VERSION=${currentGitShortHash}"]){
                   // switch traffic to new version
-                  payload = 'sed -e s/OLD_VERSION/${OLD_VERSION}/g -e s/NEW_VERSION/${NEW_VERSION}/g config/internal-gateway.yaml'
+                  payload =  sh script: 'sed -e s/OLD_VERSION/${OLD_VERSION}/g -e s/NEW_VERSION/${NEW_VERSION}/g config/internal-gateway.yaml'
                   VampAPICall('gateways/vamp.io:staging/site/webport', 'PUT', payload)
                   // remove old blueprint from deployment
                   payload = 'name: vamp.io:staging:${OLD_VERSION}'
@@ -105,9 +105,9 @@ Boolean isUserTriggered() {
 }
 
 def VampAPICall(String path, String method = 'GET', String payload = '') {
-  String script = "curl -X${method} -s http://${params.VAMP_API_ENDPOINT}/api/v1/${path}"
+  String script = "curl -X${method} -s http://${params.VAMP_API_ENDPOINT}/api/v1/${path}  -H 'Content-type: application/x-yaml'"
   if (payload) {
-      script += ' -H "Content-type: application/x-yaml" --data-binary "' + payload + '"'
+      script += ' --data-binary "' + payload + '"'
   }
   String res = sh(script: script, returnStdout: true)
   echo res
@@ -122,9 +122,8 @@ String getDeployedStagingVersion() {
     return version;
   }
 
-  String props = readJSON text: res.content
-  echo props
+  def props = readJSON text: res.content;
   String currentVersion = props.clusters.site.services[0].breed.name;
-  version = (currentVersion) ? currentVersion.split(':')[1] : ''
+  version = (currentVersion) ? currentVersion.split(':')[1] : '';
   return version
 }
