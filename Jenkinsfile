@@ -50,9 +50,9 @@ node("mesos-slave-vamp.io") {
           String currentGitShortHash = getDeployedStagingVersion();
           if (currentGitShortHash != targetGitShortHash) {
             echo 'Deploying revision ' + targetGitShortHash
-            withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${targetGitShortHash}"]){
+            withEnv(["NEW_VERSION=${targetGitShortHash}"]){
               // create new blueprint
-              def script = '''
+              String script = '''
               curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://${params.VAMP_API_ENDPOINT}/blueprints -H 'Content-type: application/x-yaml'
               '''
               VampAPICall(script)
@@ -62,26 +62,28 @@ node("mesos-slave-vamp.io") {
               '''
               VampAPICall(script)
               if (currentGitShortHash) {
-                // switch traffic to new version
-                script = '''
-                curl -s -d "$(sed -e s/OLD_VERSION/$OLD_VERSION/g -e s/NEW_VERSION/$NEW_VERSION/g config/internal-gateway.yaml)"  -XPUT http://${params.VAMP_API_ENDPOINT}/gateways/vamp.io:staging/site/webport -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
-                // remove old blueprint from deployment
-                script = '''
-                curl -s -d "name: vamp.io:staging:${OLD_VERSION}" -XDELETE http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
-                // delete old blueprint
-                script = '''
-                curl -s -XDELETE http://${params.VAMP_API_ENDPOINT}/blueprints/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
-                // delete old breed
-                script = '''
-                curl -s -XDELETE http://${params.VAMP_API_ENDPOINT}/breeds/site:${OLD_VERSION} -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
+                withEnv(["OLD_VERSION=${currentGitShortHash}"]){
+                  // switch traffic to new version
+                  script = '''
+                  curl -s -d "$(sed -e s/OLD_VERSION/$OLD_VERSION/g -e s/NEW_VERSION/$NEW_VERSION/g config/internal-gateway.yaml)"  -XPUT http://${params.VAMP_API_ENDPOINT}/gateways/vamp.io:staging/site/webport -H 'Content-type: application/x-yaml'
+                  '''
+                  VampAPICall(script)
+                  // remove old blueprint from deployment
+                  script = '''
+                  curl -s -d "name: vamp.io:staging:${OLD_VERSION}" -XDELETE http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
+                  '''
+                  VampAPICall(script)
+                  // delete old blueprint
+                  script = '''
+                  curl -s -XDELETE http://${params.VAMP_API_ENDPOINT}/blueprints/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
+                  '''
+                  VampAPICall(script)
+                  // delete old breed
+                  script = '''
+                  curl -s -XDELETE http://${params.VAMP_API_ENDPOINT}/breeds/site:${OLD_VERSION} -H 'Content-type: application/x-yaml'
+                  '''
+                  VampAPICall(script)
+                }
               }
             }
           } else {
