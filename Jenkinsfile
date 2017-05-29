@@ -1,26 +1,32 @@
 #!groovy​
+properties([
+  [ $class  : 'jenkins.model.BuildDiscarderProperty', strategy: [ $class: 'LogRotator', numToKeepStr: '20' ] ],
+  pipelineTriggers([pollSCM('H/5 * * * *')]),
+  parameters([
+    string(name: 'VAMP_API_ENDPOINT', defaultValue: '10.20.0.100:8080', description: 'The VAMP API endpoint'),
+    choice(name: 'TARGET_ENV', choices: ['staging', 'production'].join('\n'), description: 'The target environment')
+   ])
+])
+
 node("mesos-slave-vamp.io") {
   checkout scm
   // determine which version to build and deploy
-  gitShortHash = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim();
-  gitTag = sh(returnStdout: true, script: 'git describe --tag --abbrev=0').trim()
-  gitTagDirty = sh(returnStdout: true, script: 'git describe --tag').trim()
-  version = (gitTag == gitTagDirty) ? gitTag : 'nightly'
+  String version = getTargetVersion()
 
-  withEnv(["VAMP_VERSION=${version}"]) {
+  withEnv(["TARGET_VERSION=${version}"]) {
     stage('Build') {
       script = 'npm install && gulp build:site && gulp build'
       script += (version == 'nightly')? ' --env=staging': ' --env=production'
       sh script: script
-      docker.build 'magnetic.azurecr.io/vamp.io:$VAMP_VERSION', '.'
+      docker.build 'magnetic.azurecr.io/vamp.io:${TARGET_VERSION}', '.'
     }
 
     stage('Test') {
-      docker.image('magnetic.azurecr.io/vamp.io:$VAMP_VERSION').withRun ('-p 8080:8080', '-conf Caddyfile') {c ->
+      docker.image('magnetic.azurecr.io/vamp.io:${TARGET_VERSION}').withRun ('-p 8080:8080', '-conf Caddyfile') {c ->
           // check if the base url is set properly
           resp = sh( script: 'curl -s http://localhost:8080', returnStdout: true ).trim()
           assert !resp.contains("localhost:8080")
-          // check if the aliases are set properly!
+          // check if the aliases are set properly
           resp = sh script: "curl -Ls http://localhost:8080/documentation/", returnStdout: true
           assert resp =~ /url=.*\/documentation\/how-vamp-works\/v\d.\d.\d\/architecture-and-components/
       }
@@ -29,7 +35,7 @@ node("mesos-slave-vamp.io") {
     stage('Publish') {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
         withDockerRegistry([credentialsId: 'registry', url: 'https://magnetic.azurecr.io']) {
-            def site = docker.image('magnetic.azurecr.io/vamp.io:$VAMP_VERSION')
+            def site = docker.image('magnetic.azurecr.io/vamp.io:${TARGET_VERSION}')
             site.push(version)
         }
       }
@@ -37,77 +43,87 @@ node("mesos-slave-vamp.io") {
 
     stage('Deploy') {
       if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
-        def resp = ''
         if (version == 'nightly') {
-          currentVersion = getDeployedStagingVersion();
-          currentGitShortHash = currentVersion ? currentVersion.split(':')[1] : "";
-          if (currentGitShortHash != gitShortHash) {
-            withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${gitShortHash}"]){
+          String targetGitShortHash = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim();
+          String currentGitShortHash = getDeployedStagingVersion();
+          if (currentGitShortHash != targetGitShortHash) {
+            withEnv(["NEW_VERSION=${targetGitShortHash}"]){
               // create new blueprint
-              def script = '''
-              curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://10.20.0.100:8080/api/v1/blueprints -H 'Content-type: application/x-yaml'
-              '''
-              VampAPICall(script)
+              String payload = sh script: 'sed s/VERSION/${NEW_VERSION}/g config/blueprint-staging.yaml', returnStdout: true
+              VampAPICall('blueprints', 'POST', payload)
               // merge to deployment
-              script = '''
-              curl -s -d "name: vamp.io:staging:${NEW_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
-              '''
-              VampAPICall(script)
-              if (currentVersion) {
-                // switch traffic to new version
-                script = '''
-                curl -s -d "$(sed -e s/OLD_VERSION/$OLD_VERSION/g -e s/NEW_VERSION/$NEW_VERSION/g config/internal-gateway.yaml)"  -XPUT http://10.20.0.100:8080/api/v1/gateways/vamp.io:staging/site/webport -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
-                // remove old blueprint from deployment
-                script = '''
-                curl -s -d "name: vamp.io:staging:${OLD_VERSION}" -XDELETE http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
-                // delete old blueprint
-                script = '''
-                curl -s -XDELETE http://10.20.0.100:8080/api/v1/blueprints/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
-                // delete old breed
-                script = '''
-                curl -s -XDELETE http://10.20.0.100:8080/api/v1/breeds/site:${OLD_VERSION} -H 'Content-type: application/x-yaml'
-                '''
-                VampAPICall(script)
+              payload = 'name: vamp.io:staging:${NEW_VERSION}'
+              VampAPICall('deployments/vamp.io:staging', 'PUT', payload)
+              if (currentGitShortHash) {
+                withEnv(["OLD_VERSION=${currentGitShortHash}"]){
+                  // switch traffic to new version
+                  payload = 'sed -e s/OLD_VERSION/${OLD_VERSION}/g -e s/NEW_VERSION/${NEW_VERSION}/g config/internal-gateway.yaml'
+                  VampAPICall('gateways/vamp.io:staging/site/webport', 'PUT', payload)
+                  // remove old blueprint from deployment
+                  payload = 'name: vamp.io:staging:${OLD_VERSION}'
+                  VampAPICall('deployments/vamp.io:staging', 'DELETE', payload)
+                  // delete old blueprint
+                  VampAPICall('blueprints/vamp.io:staging:${OLD_VERSION}', 'DELETE')
+                  // delete old breed
+                  VampAPICall('breeds/site:${OLD_VERSION}', 'DELETE')
+                }
               }
             }
+          } else {
+            // create new blueprint
+            String payload = sh script: 'sed s/VERSION/${TARGET_VERSION}/g config/blueprint-production.yaml', returnStdout: true
+            VampAPICall('blueprints', 'POST', payload)
+            // merge to existing deployment
+            payload = 'name: vamp.io:prod:${TARGET_VERSION}'
+            VampAPICall('deployments/vamp.io:prod', 'PUT', payload)
           }
-        } else {
-          // create new blueprint
-          def script = '''
-          curl -s -d "$(sed s/VERSION/$VAMP_VERSION/g config/blueprint-production.yaml)" http://10.20.0.100:8080/api/v1/blueprints -H 'Content-type: application/x-yaml'
-          '''
-          VampAPICall(script)
-          // merge to existing deployment
-          script = '''
-          curl -s -d "name: vamp.io:prod:${VAMP_VERSION}" -XPUT http://10.20.0.100:8080/api/v1/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
-          '''
-          VampAPICall(script)
         }
       }
     }
   }
 }
 
-def VampAPICall(String script) {
-  res = sh script: script, returnStdout: true
-  // for debugging
+String getTargetVersion() {
+  String version = 'nightly'
+  String gitTag = sh(returnStdout: true, script: 'git describe --tag --abbrev=0')
+  String gitTagDirty = sh(returnStdout: true, script: 'git describe --tag').trim()
+
+  if (isUserTriggered() && params.TARGET_ENV == 'production') {
+    version = (params.TARGET_ENV == 'production') ? gitTag : 'nightly'
+  } else {
+    // build triggered automatically
+    version = (gitTag == gitTagDirty) ? gitTag : 'nightly'
+  }
+
+  return version
+}
+
+@NonCPS
+Boolean isUserTriggered() {
+    def causes = currentBuild.rawBuild.getCauses()
+    return (causes.last() instanceof hudson.model.Cause$UserIdCause)
+}
+
+def VampAPICall(String path, String method = 'GET', String payload = '') {
+  String script = "curl -X${method} -s http://${params.VAMP_API_ENDPOINT}/api/v1/${path}"
+  if (payload) {
+      script += ' -H "Content-type: application/x-yaml" --data-binary "' + payload + '"'
+  }
+  String res = sh(script: script, returnStdout: true)
   echo res
   if (res.contains("Error")) { error "Deployment failed! Error: " + res }
 }
 
-def getDeployedStagingVersion() {
-  def response = httpRequest url:"http://10.20.0.100:8080/api/v1/deployments/vamp.io:staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
+String getDeployedStagingVersion() {
+  def res = httpRequest url:"http://${params.VAMP_API_ENDPOINT}/api/v1/deployments/vamp.io:staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
+  String version = '';
 
-  if (response.status == 404) {
-    return "";
+  if (res.status == 404) {
+    return version;
   }
 
-  def props = readJSON text: response.content
-  return props.clusters.site.services[0].breed.name;
+  String props = readJSON text: res.content
+  String currentVersion = props.clusters.site.services[0].breed.name;
+  version = (currentVersion) ? currentVersion.split(':')[1] : ''
+  return version
 }
