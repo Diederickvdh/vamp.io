@@ -123,6 +123,7 @@ String getDeployedStagingVersion() {
   }
 
   String props = readJSON text: res.content
+  echo props
   String currentVersion = props.clusters.site.services[0].breed.name;
   version = (currentVersion) ? currentVersion.split(':')[1] : ''
   return version
