@@ -1,5 +1,9 @@
 #!groovy​
 properties([
+  [ $class  : 'jenkins.model.BuildDiscarderProperty', strategy: [ $class: 'LogRotator', numToKeepStr: '20' ] ],
+  pipelineTriggers([
+    [ $class: 'hudson.triggers.TimerTrigger', spec  : "*/5 * * * *" ]
+  ]),
   parameters([
     string(name: 'VAMP_API_ENDPOINT', defaultValue: '10.20.0.100:8080', description: 'The VAMP API endpoint'),
     choice(name: 'TARGET_ENV', choices: ['staging', 'production'].join('\n'), description: 'The target environment')
@@ -48,33 +52,33 @@ node("mesos-slave-vamp.io") {
             withEnv(["OLD_VERSION=${currentGitShortHash}", "NEW_VERSION=${targetGitShortHash}"]){
               // create new blueprint
               String script = '''
-              curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://${VAMP_API_ENDPOINT}/blueprints -H 'Content-type: application/x-yaml'
+              curl -s -d "$(sed s/VERSION/$NEW_VERSION/g config/blueprint-staging.yaml)" http://${params.VAMP_API_ENDPOINT}/blueprints -H 'Content-type: application/x-yaml'
               '''
               VampAPICall(script)
               // merge to deployment
               script = '''
-              curl -s -d "name: vamp.io:staging:${NEW_VERSION}" -XPUT http://${VAMP_API_ENDPOINT}/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
+              curl -s -d "name: vamp.io:staging:${NEW_VERSION}" -XPUT http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
               '''
               VampAPICall(script)
               if (currentGitShortHash) {
                 // switch traffic to new version
                 script = '''
-                curl -s -d "$(sed -e s/OLD_VERSION/$OLD_VERSION/g -e s/NEW_VERSION/$NEW_VERSION/g config/internal-gateway.yaml)"  -XPUT http://${VAMP_API_ENDPOINT}/gateways/vamp.io:staging/site/webport -H 'Content-type: application/x-yaml'
+                curl -s -d "$(sed -e s/OLD_VERSION/$OLD_VERSION/g -e s/NEW_VERSION/$NEW_VERSION/g config/internal-gateway.yaml)"  -XPUT http://${params.VAMP_API_ENDPOINT}/gateways/vamp.io:staging/site/webport -H 'Content-type: application/x-yaml'
                 '''
                 VampAPICall(script)
                 // remove old blueprint from deployment
                 script = '''
-                curl -s -d "name: vamp.io:staging:${OLD_VERSION}" -XDELETE http://${VAMP_API_ENDPOINT}/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
+                curl -s -d "name: vamp.io:staging:${OLD_VERSION}" -XDELETE http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:staging -H 'Content-type: application/x-yaml'
                 '''
                 VampAPICall(script)
                 // delete old blueprint
                 script = '''
-                curl -s -XDELETE http://${VAMP_API_ENDPOINT}/blueprints/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
+                curl -s -XDELETE http://${params.VAMP_API_ENDPOINT}/blueprints/vamp.io:staging:${OLD_VERSION} -H 'Content-type: application/x-yaml'
                 '''
                 VampAPICall(script)
                 // delete old breed
                 script = '''
-                curl -s -XDELETE http://${VAMP_API_ENDPOINT}/breeds/site:${OLD_VERSION} -H 'Content-type: application/x-yaml'
+                curl -s -XDELETE http://${params.VAMP_API_ENDPOINT}/breeds/site:${OLD_VERSION} -H 'Content-type: application/x-yaml'
                 '''
                 VampAPICall(script)
               }
@@ -82,12 +86,12 @@ node("mesos-slave-vamp.io") {
           } else {
             // create new blueprint
             def script = '''
-            curl -s -d "$(sed s/VERSION/$TARGET_VERSION/g config/blueprint-production.yaml)" http://${VAMP_API_ENDPOINT}/blueprints -H 'Content-type: application/x-yaml'
+            curl -s -d "$(sed s/VERSION/$TARGET_VERSION/g config/blueprint-production.yaml)" http://${params.VAMP_API_ENDPOINT}/blueprints -H 'Content-type: application/x-yaml'
             '''
             VampAPICall(script)
             // merge to existing deployment
             script = '''
-            curl -s -d "name: vamp.io:prod:${TARGET_VERSION}" -XPUT http://${VAMP_API_ENDPOINT}/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
+            curl -s -d "name: vamp.io:prod:${TARGET_VERSION}" -XPUT http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:prod -H 'Content-type: application/x-yaml'
             '''
             VampAPICall(script)
           }
@@ -124,13 +128,15 @@ def VampAPICall(String script) {
 }
 
 String getDeployedStagingVersion() {
-  String res = httpRequest url:"http://${VAMP_API_ENDPOINT}/deployments/vamp.io:staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
+  def res = httpRequest url:"http://${params.VAMP_API_ENDPOINT}/deployments/vamp.io:staging", acceptType: "APPLICATION_JSON", validResponseCodes: "100:404"
+  String version = '';
 
   if (res.status == 404) {
-    return "";
+    return version;
   }
 
   String props = readJSON text: res.content
   String currentVersion = props.clusters.site.services[0].breed.name;
-  return (currentVersion) ? currentVersion.split(':')[1] : ""
+  version = (currentVersion) ? currentVersion.split(':')[1] : ''
+  return version
 }
