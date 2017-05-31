@@ -86,17 +86,18 @@ try {
     }
   }
 } catch (e) {
-   mail subject: "${env.JOB_NAME} (${env.BUILD_NUMBER}) failed",
-        body: "It appears that ${env.BUILD_URL} is failing, somebody should do something about that",
-        to: "automation@magnetic.io",
-        replyTo: "automation@magnetic.io",
-        from: 'noreply@ci.jenkins.io'
+  def w = new StringWriter()
+  e.printStackTrace(new PrintWriter(w))
+  mail subject: "${env.JOB_NAME} (${env.BUILD_NUMBER}) failed with ${e.message}",
+    body: "Failed ",
+    to: "automation@magnetic.io",
+    from: 'noreply@ci.jenkins.io'
+  throw e;
 } finally {
   mail subject: "${env.JOB_NAME} (${env.BUILD_NUMBER}) succeeded",
-        body: "Job finished without errors",
-        to: "automation@magnetic.io",
-        replyTo: "automation@magnetic.io",
-        from: 'noreply@ci.jenkins.io'
+    body: "Job finished without errors",
+    to: "automation@magnetic.io",
+    from: 'noreply@ci.jenkins.io'
 }
 
 String getTargetVersion(Boolean userTriggered) {
