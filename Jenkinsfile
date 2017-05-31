@@ -8,81 +8,95 @@ properties([
    ])
 ])
 
-node("mesos-slave-vamp.io") {
-  checkout scm
-  // determine which version to build and deploy
-  Boolean userTriggered = isUserTriggered();
-  String version = getTargetVersion(userTriggered);
+try {
+  node("mesos-slave-vamp.io") {
+    checkout scm
+    // determine which version to build and deploy
+    Boolean userTriggered = isUserTriggered();
+    String version = getTargetVersion(userTriggered);
 
-  stage('Build') {
-    script = 'npm install && gulp build:site && gulp build'
-    script += (version == 'nightly')? ' --env=staging': ' --env=production'
-    sh script: script
-    docker.build "magnetic.azurecr.io/vamp.io:${version}", '.'
-  }
-
-  stage('Test') {
-    docker.image("magnetic.azurecr.io/vamp.io:${version}").withRun ('-p 8080:8080', '-conf Caddyfile') {c ->
-        // check if the base url is set properly
-        resp = sh( script: 'curl -s http://localhost:8080', returnStdout: true ).trim()
-        assert !resp.contains("localhost:8080")
-        // check if the aliases are set properly
-        resp = sh script: "curl -Ls http://localhost:8080/documentation/", returnStdout: true
-        assert resp =~ /url=.*\/documentation\/how-vamp-works\/v\d.\d.\d\/architecture-and-components/
+    stage('Build') {
+      script = 'npm install && gulp build:site && gulp build'
+      script += (version == 'nightly')? ' --env=staging': ' --env=production'
+      sh script: script
+      docker.build "magnetic.azurecr.io/vamp.io:${version}", '.'
     }
-  }
 
-  stage('Publish') {
-    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
-      withDockerRegistry([credentialsId: 'registry', url: 'https://magnetic.azurecr.io']) {
-          docker.image("magnetic.azurecr.io/vamp.io:${version}").push(version);
+    stage('Test') {
+      docker.image("magnetic.azurecr.io/vamp.io:${version}").withRun ('-p 8080:8080', '-conf Caddyfile') {c ->
+          // check if the base url is set properly
+          resp = sh( script: 'curl -s http://localhost:8080', returnStdout: true ).trim()
+          assert !resp.contains("localhost:8080")
+          // check if the aliases are set properly
+          resp = sh script: "curl -Ls http://localhost:8080/documentation/", returnStdout: true
+          assert resp =~ /url=.*\/documentation\/how-vamp-works\/v\d.\d.\d\/architecture-and-components/
       }
     }
-  }
 
-  stage('Deploy') {
-    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
-      if (env.TARGET_ENV == 'staging' && userTriggered || version == 'nightly') {
-        String targetGitShortHash = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim();
-        String currentGitShortHash = getDeployedStagingVersion();
-        if (currentGitShortHash != targetGitShortHash) {
-          echo "Deploying ${version} to staging environment"
-          withEnv(["NEW_VERSION=${targetGitShortHash}"]){
-            // create new blueprint
-            String payload = sh script: 'sed s/VERSION/${NEW_VERSION}/g config/blueprint-staging.yaml', returnStdout: true
-            VampAPICall('blueprints', 'POST', payload)
-            // merge to deployment
-            payload = 'name: vamp.io:staging:${NEW_VERSION}'
-            VampAPICall('deployments/vamp.io:staging', 'PUT', payload)
-            if (currentGitShortHash) {
-              withEnv(["OLD_VERSION=${currentGitShortHash}"]){
-                // switch traffic to new version
-                payload =  sh script: 'sed -e s/OLD_VERSION/${OLD_VERSION}/g -e s/NEW_VERSION/${NEW_VERSION}/g config/internal-gateway.yaml', returnStdout: true
-                VampAPICall('gateways/vamp.io:staging/site/webport', 'PUT', payload)
-                // remove old blueprint from deployment
-                payload = 'name: vamp.io:staging:${OLD_VERSION}'
-                VampAPICall('deployments/vamp.io:staging', 'DELETE', payload)
-                // delete old blueprint
-                VampAPICall('blueprints/vamp.io:staging:${OLD_VERSION}', 'DELETE')
-                // delete old breed
-                VampAPICall('breeds/site:${OLD_VERSION}', 'DELETE')
+    stage('Publish') {
+      if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
+        withDockerRegistry([credentialsId: 'registry', url: 'https://magnetic.azurecr.io']) {
+            docker.image("magnetic.azurecr.io/vamp.io:${version}").push(version);
+        }
+      }
+    }
+
+    stage('Deploy') {
+      if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
+        if (env.TARGET_ENV == 'staging' && userTriggered || version == 'nightly') {
+          String targetGitShortHash = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim();
+          String currentGitShortHash = getDeployedStagingVersion();
+          if (currentGitShortHash != targetGitShortHash) {
+            echo "Deploying ${version} to staging environment"
+            withEnv(["NEW_VERSION=${targetGitShortHash}"]){
+              // create new blueprint
+              String payload = sh script: 'sed s/VERSION/${NEW_VERSION}/g config/blueprint-staging.yaml', returnStdout: true
+              VampAPICall('blueprints', 'POST', payload)
+              // merge to deployment
+              payload = 'name: vamp.io:staging:${NEW_VERSION}'
+              VampAPICall('deployments/vamp.io:staging', 'PUT', payload)
+              if (currentGitShortHash) {
+                withEnv(["OLD_VERSION=${currentGitShortHash}"]){
+                  // switch traffic to new version
+                  payload =  sh script: 'sed -e s/OLD_VERSION/${OLD_VERSION}/g -e s/NEW_VERSION/${NEW_VERSION}/g config/internal-gateway.yaml', returnStdout: true
+                  VampAPICall('gateways/vamp.io:staging/site/webport', 'PUT', payload)
+                  // remove old blueprint from deployment
+                  payload = 'name: vamp.io:staging:${OLD_VERSION}'
+                  VampAPICall('deployments/vamp.io:staging', 'DELETE', payload)
+                  // delete old blueprint
+                  VampAPICall('blueprints/vamp.io:staging:${OLD_VERSION}', 'DELETE')
+                  // delete old breed
+                  VampAPICall('breeds/site:${OLD_VERSION}', 'DELETE')
+                }
               }
             }
           }
-        }
-      } else {
-        // create new blueprint
-        echo "Deploying ${version} to production environment"
-        withEnv(["TARGET_VERSION=${version}"]) {
-          String payload = sh script: 'sed s/VERSION/${TARGET_VERSION}/g config/blueprint-production.yaml', returnStdout: true
-          VampAPICall('blueprints', 'POST', payload)
-          // merge to existing deployment
-          payload = 'name: vamp.io:production:${TARGET_VERSION}'
-          VampAPICall('deployments/vamp.io:production', 'PUT', payload)
+        } else {
+          // create new blueprint
+          echo "Deploying ${version} to production environment"
+          withEnv(["TARGET_VERSION=${version}"]) {
+            String payload = sh script: 'sed s/VERSION/${TARGET_VERSION}/g config/blueprint-production.yaml', returnStdout: true
+            VampAPICall('blueprints', 'POST', payload)
+            // merge to existing deployment
+            payload = 'name: vamp.io:production:${TARGET_VERSION}'
+            VampAPICall('deployments/vamp.io:production', 'PUT', payload)
+          }
         }
       }
     }
   }
+} catch (e) {
+   mail subject: "${env.JOB_NAME} (${env.BUILD_NUMBER}) failed",
+        body: "It appears that ${env.BUILD_URL} is failing, somebody should do something about that",
+        to: "automation@magnetic.io",
+        replyTo: "automation@magnetic.io",
+        from: 'noreply@ci.jenkins.io'
+} finally {
+  mail subject: "${env.JOB_NAME} (${env.BUILD_NUMBER}) succeeded",
+        body: "Job finished without errors",
+        to: "automation@magnetic.io",
+        replyTo: "automation@magnetic.io",
+        from: 'noreply@ci.jenkins.io'
 }
 
 String getTargetVersion(Boolean userTriggered) {
