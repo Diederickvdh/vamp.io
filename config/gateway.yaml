@@ -1,0 +1,9 @@
+name: vamp.io
+port: 9050/http
+routes:
+  vamp.io:production/site/webport:
+    weight: 100%
+  vamp.io:staging/site/webport:
+    weight: 0%
+    condition: "Header Environment has test"
+    condition_strength: 100%
